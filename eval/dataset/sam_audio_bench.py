@@ -45,6 +45,29 @@ class SAMAudioBench(torch.utils.data.Dataset):
         )
         assert os.path.exists(self.cache_path), DATA_MSG
 
+        # [available-only] Skip benchmark samples whose video file is missing
+        available_indices = []
+
+        for i, item in enumerate(self.dataset):
+            video_path, _ = self._get_path(
+                item["video_id"],
+                item["source_dataset"],
+                item["start_offset"],
+                item["end_offset"],
+            )
+
+            if os.path.exists(video_path):
+                available_indices.append(i)
+            else:
+                print(
+                    f"[skip missing] {item['source_dataset']} / "
+                    f"{item['video_id']} "
+                    f"({item['start_offset']}-{item['end_offset']})"
+                )
+
+        self.dataset = self.dataset.select(available_indices)
+        print(f"[SAMAudioBench] available samples: {len(self.dataset)}")
+
     @property
     def visual(self):
         return self._visual
@@ -85,7 +108,7 @@ class SAMAudioBench(torch.utils.data.Dataset):
         if item["mask_bytes"] is None:
             return None
 
-        mask = torch.from_numpy(np.load(BytesIO(item["mask_bytes"]))["video_masklet"])
+        mask = torch.from_numpy(np.load(BytesIO(item["mask_bytes"]))["video_masklet"]).float()
 
         video_decoder = VideoDecoder(video_path)
         if select_frames:

@@ -6,9 +6,11 @@ import os
 
 import pandas as pd
 import torch
+import torchaudio
 import torch.distributed as dist
 from dataset import SETTINGS, make_dataset
-from metrics import CLAP, Aesthetic, ImageBind, Judge
+# from metrics import CLAP, Aesthetic, ImageBind, Judge
+from metrics import ImageBind
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 from tqdm import tqdm
@@ -59,15 +61,20 @@ def main(
         device = torch.device(f"cuda:{rank}")
         torch.cuda.set_device(device)
 
+    print("loading SAM...")
     model = SAMAudio.from_pretrained(checkpoint_path)
+    print("moving SAM to GPU...")
     model = model.eval().to(device)
+    print("loading processor...")
     processor = SAMAudioProcessor.from_pretrained(checkpoint_path)
 
-    judge_metric = Judge(device=device)
-    aes_metric = Aesthetic(device=device)
-    clap_metric = CLAP(device=device)
+    # judge_metric = Judge(device=device)
+    # aes_metric = Aesthetic(device=device)
+    # clap_metric = CLAP(device=device)
+    print("loading ImageBind...")
     imagebind_metric = ImageBind(device=device)
 
+    print("all models loaded")
     for setting in settings:
         print(f"Evaluating: {setting}")
         dset = make_dataset(setting, cache_path=cache_path, collate_fn=processor)
@@ -84,11 +91,13 @@ def main(
             sampler=sampler,
         )
 
-        all_metrics = [
-            judge_metric,
-            aes_metric,
-            clap_metric,
-        ]
+        # all_metrics = [
+        #     judge_metric,
+        #     aes_metric,
+        #     clap_metric,
+        # ]
+
+        all_metrics = []
 
         if dset.visual:
             all_metrics.append(imagebind_metric)
