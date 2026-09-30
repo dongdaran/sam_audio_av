@@ -32,11 +32,28 @@ def save_audio(path, waveform, sample_rate):
 
 
 def save_progress(path, identity, rows):
+    save_json(path, {"identity": identity, "rows": rows})
+
+
+def save_manifest(path, dataset, identity):
+    samples = []
+    for index, item in enumerate(dataset.dataset):
+        samples.append({
+            "sample_index": index,
+            "video_id": item["video_id"],
+            "source_dataset": item["source_dataset"],
+            "description": item["description"],
+            "spans": item["spans"],
+        })
+    save_json(path, {"identity": identity, "samples": samples})
+
+
+def save_json(path, data):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".tmp")
     with temporary.open("w") as stream:
-        json.dump({"identity": identity, "rows": rows}, stream, allow_nan=False)
+        json.dump(data, stream, allow_nan=False, ensure_ascii=False, indent=2)
         stream.flush()
         os.fsync(stream.fileno())
     os.replace(temporary, path)

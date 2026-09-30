@@ -4,7 +4,9 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-from progress import load_progress, save_progress, save_audio
+from progress import load_progress, save_progress, save_audio, save_manifest
+import json
+from types import SimpleNamespace
 
 
 with TemporaryDirectory() as directory:
@@ -28,6 +30,20 @@ with TemporaryDirectory() as directory:
 
     audio_dir = Path(directory) / "audio"
     assert load_progress(path, identity, audio_dir) == []
+    item = dict(video_id="same_video", source_dataset="audioset",
+                start_offset=10, end_offset=20, description="guitar",
+                spans=[[0.5, 2.0], [3.0, 4.5]], mask_bytes=b"not JSON")
+    dataset = SimpleNamespace(
+        dataset=[item, {**item, "description": "drums"}],
+    )
+    manifest = Path(directory) / "manifest.json"
+    save_manifest(manifest, dataset, identity)
+    samples = json.loads(manifest.read_text())["samples"]
+    assert samples == [
+        {"sample_index": index, "video_id": "same_video", "source_dataset": "audioset",
+         "description": description, "spans": [[0.5, 2.0], [3.0, 4.5]]}
+        for index, description in enumerate(["guitar", "drums"])
+    ]
     waveform = np.array([0.0, 0.5, -0.5, 1.25], dtype=np.float32)
     for kind in ("target", "residual"):
         output = audio_dir / f"000000_{kind}.wav"

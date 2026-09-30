@@ -11,7 +11,7 @@ import torch.distributed as dist
 from dataset import SETTINGS, make_dataset
 # from metrics import CLAP, Aesthetic, ImageBind, Judge
 from metrics import ImageBind
-from progress import load_progress, save_progress, save_audio
+from progress import load_progress, save_progress, save_audio, save_manifest
 from torch.utils.data import DataLoader, Subset
 from torch.utils.data.distributed import DistributedSampler
 from tqdm import tqdm
@@ -101,6 +101,8 @@ def main(
         rows = load_progress(progress_path, identity, audio_dir=audio_dir)
         if len(rows) > len(dset):
             raise ValueError("Saved progress exceeds dataset length")
+        if dset.visual:
+            save_manifest(f"results/{setting}/manifest.json", dset, identity)
         print(f"Resuming {setting}: {len(rows)}/{len(dset)} samples complete")
         saved_count = len(rows)
         sampler = None
