@@ -74,7 +74,8 @@ def main(
     # aes_metric = Aesthetic(device=device)
     # clap_metric = CLAP(device=device)
     print("loading ImageBind...")
-    imagebind_metric = ImageBind(device=device)
+    metric_device = torch.device("cuda:1") if world_size == 1 and torch.cuda.device_count() > 1 else device
+    imagebind_metric = ImageBind(device=metric_device)
 
     print("all models loaded")
     for setting in settings:

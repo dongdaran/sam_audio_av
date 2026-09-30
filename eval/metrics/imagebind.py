@@ -34,10 +34,10 @@ class ImageBind(torch.nn.Module):
         **kwargs,
     ) -> dict[str, list[float]]:
         audio_data = load_and_transform_audio_data(
-            target_wavs, input_sample_rate=target_wavs_sample_rate
+            target_wavs, input_sample_rate=target_wavs_sample_rate, device=self.device
         )
         durations = [x.size(-1) / target_wavs_sample_rate for x in target_wavs]
-        video_data = self.video_transform(videos, durations, audio_data.device)
+        video_data = self.video_transform(videos, durations, self.device)
 
         inputs = {ModalityType.AUDIO: audio_data, ModalityType.VISION: video_data}
         embs = self.model(inputs)
