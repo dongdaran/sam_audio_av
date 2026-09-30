@@ -75,6 +75,8 @@ def main(
     # clap_metric = CLAP(device=device)
     print("loading ImageBind...")
     metric_device = torch.device("cuda:1") if world_size == 1 and torch.cuda.device_count() > 1 else device
+    if model.visual_ranker is not None:
+        model.visual_ranker.to(metric_device)
     imagebind_metric = ImageBind(device=metric_device)
 
     print("all models loaded")

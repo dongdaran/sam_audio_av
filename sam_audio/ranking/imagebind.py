@@ -171,15 +171,16 @@ class ImageBindRanker(Ranker):
         sample_rate: int = 48_000,
         **kwargs,
     ):
+        device = next(self.model.parameters()).device
         audio_data = torch.cat(
             [
-                load_and_transform_audio_data(x, input_sample_rate=sample_rate)
+                load_and_transform_audio_data(x.to(device), input_sample_rate=sample_rate, device=device)
                 for x in extracted_audio
             ],
             dim=0,
         )
         if isinstance(videos[0], str):
-            video_data = load_and_transform_video_data(videos)
+            video_data = load_and_transform_video_data(videos, device=device)
         else:
             durations = [x.size(-1) / sample_rate for x in extracted_audio]
             video_data = self.video_transform(videos, durations, audio_data.device)
@@ -194,4 +195,4 @@ class ImageBindRanker(Ranker):
         bsz = len(extracted_audio)
         candidates = len(audio_embs) // bsz
         scores = audio_embs.view(bsz, candidates, -1) @ video_embs.view(bsz, -1, 1)
-        return scores
+        return scores.to(extracted_audio[0].device)
