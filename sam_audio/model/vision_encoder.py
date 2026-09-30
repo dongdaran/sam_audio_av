@@ -57,15 +57,15 @@ class VisionEncoder(torch.nn.Module, metaclass=ABCMeta):
                 The output is padded along the time dimension for variable length videos
         """
         result = []
+        device = next(self.parameters()).device
         for video in videos:
-            video = self.transform(video)
             if self.batch_size > 0 and video.size(0) > self.batch_size:
                 res = []
                 for i in range(0, video.size(0), self.batch_size):
-                    res.append(self.encode(video[i : i + self.batch_size]))
+                    res.append(self.encode(self.transform(video[i : i + self.batch_size].to(device))))
                 result.append(torch.cat(res, dim=0))
             else:
-                result.append(self.encode(video))
+                result.append(self.encode(self.transform(video.to(device))))
         return pad_sequence(result, batch_first=True, padding_value=0.0)
 
     @abstractmethod

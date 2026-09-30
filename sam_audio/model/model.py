@@ -188,7 +188,7 @@ class SAMAudio(BaseModel):
         if video is None:
             return audio_features.new_zeros(B, self.vision_encoder.dim, T)
         else:
-            return self.vision_encoder(video).transpose(1, 2)
+            return self.vision_encoder(video).transpose(1, 2).to(audio_features.device)
 
     def _repeat_for_reranking(self, tensor, candidates):
         if candidates > 1:

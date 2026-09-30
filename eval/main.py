@@ -11,7 +11,8 @@ import torch.distributed as dist
 from dataset import SETTINGS, make_dataset
 # from metrics import CLAP, Aesthetic, ImageBind, Judge
 from metrics import ImageBind
-from torch.utils.data import DataLoader
+from progress import load_progress, save_progress
+from torch.utils.data import DataLoader, Subset
 from torch.utils.data.distributed import DistributedSampler
 from tqdm import tqdm
 
@@ -54,6 +55,8 @@ def main(
 ):
     world_size = int(os.environ.get("WORLD_SIZE", 1))
     rank = int(os.environ.get("RANK", 0))
+    if world_size != 1:
+        raise ValueError("Resumable evaluation uses one process; run python, not torchrun")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     if world_size > 1:
@@ -66,7 +69,10 @@ def main(
         checkpoint_path, text_ranker=None, span_predictor=None
     )
     print("moving SAM to GPU...")
-    model = model.eval().to(device)
+    metric_device = torch.device("cuda:1") if torch.cuda.device_count() > 1 else device
+    model = model.eval()
+    for name, module in model.named_children():
+        module.to(metric_device if name in {"vision_encoder", "visual_ranker"} else device)
     model.vision_encoder.batch_size = 8
     print("loading processor...")
     processor = SAMAudioProcessor.from_pretrained(checkpoint_path)
@@ -84,12 +90,24 @@ def main(
     for setting in settings:
         print(f"Evaluating: {setting}")
         dset = make_dataset(setting, cache_path=cache_path, collate_fn=processor)
+        progress_path = f"results/{setting}.progress.json"
+        identity = {
+            "setting": setting, "checkpoint": checkpoint_path,
+            "candidates": reranking_candidates,
+            "dataset": dset.dataset._fingerprint if hasattr(dset, "dataset") else str(len(dset)),
+            "cache_path": os.path.abspath(cache_path),
+        }
+        rows = load_progress(progress_path, identity)
+        if len(rows) > len(dset):
+            raise ValueError("Saved progress exceeds dataset length")
+        print(f"Resuming {setting}: {len(rows)}/{len(dset)} samples complete")
+        saved_count = len(rows)
         sampler = None
         if world_size > 1:
             sampler = DistributedSampler(dset)
 
         dl = DataLoader(
-            dset,
+            Subset(dset, range(len(rows), len(dset))),
             batch_size=batch_size,
             shuffle=False,
             collate_fn=dset.collate,
@@ -108,10 +126,9 @@ def main(
         if dset.visual:
             all_metrics.append(imagebind_metric)
 
-        dfs = []
         with torch.inference_mode():
             for batch in tqdm(dl, disable=rank > 1):
-                batch = batch.to(device)
+                batch = batch.to(device, video_device="cpu")
                 result = model.separate(
                     batch, reranking_candidates=reranking_candidates
                 )
@@ -129,9 +146,21 @@ def main(
                         )
                     )
 
-                dfs.append(pd.DataFrame.from_dict(mets))
+                batch_rows = pd.DataFrame.from_dict(mets).to_dict("records")
+                if len(batch_rows) != len(result.target):
+                    raise ValueError("Each evaluated sample must have metric results")
+                for row in batch_rows:
+                    rows.append(row)
+                    if len(rows) - saved_count == 5:
+                        save_progress(progress_path, identity, rows)
+                        saved_count = len(rows)
+                del result, batch
 
-        df = pd.concat(dfs)
+        save_progress(progress_path, identity, rows)
+        if not rows:
+            print(f"No available samples for {setting}")
+            continue
+        df = pd.DataFrame(rows)
         averaged_results = gather_and_average_results(df, world_size)
         if rank == 0:
             results_dict = {k: f"{v:.3f}" for k, v in averaged_results.items()}
