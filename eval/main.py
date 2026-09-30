@@ -62,7 +62,9 @@ def main(
         torch.cuda.set_device(device)
 
     print("loading SAM...")
-    model = SAMAudio.from_pretrained(checkpoint_path)
+    model = SAMAudio.from_pretrained(
+        checkpoint_path, text_ranker=None, span_predictor=None
+    )
     print("moving SAM to GPU...")
     model = model.eval().to(device)
     print("loading processor...")
