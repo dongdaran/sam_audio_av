@@ -11,7 +11,7 @@ import torch.distributed as dist
 from dataset import SETTINGS, make_dataset
 # from metrics import CLAP, Aesthetic, ImageBind, Judge
 from metrics import ImageBind
-from progress import load_progress, save_progress
+from progress import load_progress, save_progress, save_audio
 from torch.utils.data import DataLoader, Subset
 from torch.utils.data.distributed import DistributedSampler
 from tqdm import tqdm
@@ -97,7 +97,8 @@ def main(
             "dataset": dset.dataset._fingerprint if hasattr(dset, "dataset") else str(len(dset)),
             "cache_path": os.path.abspath(cache_path),
         }
-        rows = load_progress(progress_path, identity)
+        audio_dir = f"results/{setting}/audio"
+        rows = load_progress(progress_path, identity, audio_dir=audio_dir)
         if len(rows) > len(dset):
             raise ValueError("Saved progress exceeds dataset length")
         print(f"Resuming {setting}: {len(rows)}/{len(dset)} samples complete")
@@ -132,6 +133,14 @@ def main(
                 result = model.separate(
                     batch, reranking_candidates=reranking_candidates
                 )
+                for offset, (target, residual) in enumerate(zip(result.target, result.residual, strict=True)):
+                    sample_index = len(rows) + offset
+                    for kind, waveform in (("target", target), ("residual", residual)):
+                        save_audio(
+                            f"{audio_dir}/{sample_index:06d}_{kind}.wav",
+                            waveform.detach().float().cpu().numpy().reshape(-1),
+                            model.sample_rate,
+                        )
                 mets = {}
                 for metric in all_metrics:
                     input_wavs = model.unbatch(batch.audios.squeeze(1), batch.wav_sizes)
