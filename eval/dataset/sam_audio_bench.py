@@ -131,13 +131,6 @@ class SAMAudioBench(torch.utils.data.Dataset):
         if mask.shape[-2:] != video_frames.shape[-2:]:
             mask = F.interpolate(mask, size=video_frames.shape[-2:])
 
-        import torchvision
-
-        torchvision.io.write_video("test.mp4", video_frames.permute(0, 2, 3, 1), 30)
-        torchvision.io.write_video(
-            "test_mask.mp4", mask.unsqueeze(-1).expand(-1, -1, -1, 3) * 255, 30
-        )
-
         return video_frames * mask
 
     def __getitem__(self, idx) -> Item:
