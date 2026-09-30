@@ -302,9 +302,13 @@ class SAMAudio(BaseModel):
         )
         generated_features = states[-1].transpose(1, 2)
         # generated_features has shape [B, 2C, T].  Reshape to stack along the batch dimension
-        wavs = self.audio_codec.decode(generated_features.reshape(2 * B, C, T)).view(
-            B, 2, -1
-        )
+        wavs = torch.cat(
+            [
+                self.audio_codec.decode(chunk)
+                for chunk in generated_features.reshape(2 * B, C, T).split(1)
+            ],
+            dim=0,
+        ).view(B, 2, -1)
 
         bsz = wavs.size(0) // reranking_candidates
         sizes = self.audio_codec.feature_idx_to_wav_idx(batch.sizes)

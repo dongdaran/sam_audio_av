@@ -67,7 +67,7 @@ def main(
     )
     print("moving SAM to GPU...")
     model = model.eval().to(device)
-    model.vision_encoder.batch_size = 8
+    # model.vision_encoder.batch_size = 8
     print("loading processor...")
     processor = SAMAudioProcessor.from_pretrained(checkpoint_path)
 
