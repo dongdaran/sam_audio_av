@@ -29,8 +29,9 @@ class SAMAudioBench(torch.utils.data.Dataset):
         span: bool = True,
         visual: bool = True,
         subset: Optional[str] = None,
+        dataset=None,
     ):
-        self.dataset = load_dataset("facebook/sam-audio-bench")["test"]
+        self.dataset = dataset if dataset is not None else load_dataset("facebook/sam-audio-bench")["test"]
         self.subset = subset
         self._span = span
         self._visual = visual
